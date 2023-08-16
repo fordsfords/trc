@@ -457,6 +457,7 @@ extern "C" {
 
 #if defined(_WIN32)
   #define CPRT_THREAD_T HANDLE
+  #define CPRT_THREAD_ID_T uint64_t
   #define CPRT_THREAD_ENTRYPOINT DWORD WINAPI
   #define CPRT_THREAD_CREATE(_tid, _tstrt, _targ) do {\
     DWORD _ignore;\
@@ -469,15 +470,18 @@ extern "C" {
   } while (0)
   #define CPRT_THREAD_EXIT do { ExitThread(0); } while (0)
   #define CPRT_THREAD_JOIN(_tid) WaitForSingleObject(_tid, INFINITE)
+  #define CPRT_GET_THREAD_ID() ((CPRT_THREAD_ID_T)GetCurrentThreadId())
 
 #else  /* Unix */
   #define CPRT_THREAD_T pthread_t
+  #define CPRT_THREAD_ID_T uint64_t
   #define CPRT_THREAD_ENTRYPOINT void *
   #define CPRT_THREAD_CREATE(_tid, _tstrt, _targ) \
     CPRT_EOK0(errno = pthread_create(&(_tid), NULL, _tstrt, _targ))
   #define CPRT_THREAD_EXIT pthread_exit(NULL)
   #define CPRT_THREAD_JOIN(_tid) \
     CPRT_EOK0(errno = pthread_join(_tid, NULL))
+  #define CPRT_GET_THREAD_ID() ((CPRT_THREAD_ID_T)pthread_self())
 #endif
 
 #define CPRT_CPU_ZERO(_cprt_cpuset) do { \

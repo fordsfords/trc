@@ -18,6 +18,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "trc.h"
+
 
 /* Options and their defaults */
 int o_testnum = 0;
@@ -59,26 +61,94 @@ int main(int argc, char **argv)
 
   if (optind != argc) { usage("Extra parameter(s)"); }
 
+  printf("Test %d...", o_testnum);
+
   switch(o_testnum) {
     case 0:  /* no test */
+      printf("OK\n");
       break;
 
     case 1:
-      fprintf(stderr, "CPRT_ASSERT\n");
-      CPRT_ASSERT(o_testnum == 1 && "internal test fail");
-      CPRT_ASSERT(o_testnum != 1 && "should fail");
+    {
+      trc_t *trc;  int err;  int i;
+      FILE *out_fd;
+
+      err = trc_create(&trc, 10, TRC_CREATE_FLAG_NO_OVERRIDE);  TRC_ERR(err);
+      CPRT_ASSERT(trc->num_entries == 10);
+      CPRT_ASSERT(trc->event_count == 0);
+      CPRT_ASSERT(trc->create_flags == TRC_CREATE_FLAG_NO_OVERRIDE);
+
+      err = trc_trace(trc, __FILE__, __LINE__, 11, 12);  TRC_ERR(err);
+      CPRT_ASSERT(trc->event_count == 1);
+      CPRT_ASSERT(trc->events[0].timestamp.tv_sec == 0);
+      CPRT_ASSERT(trc->events[0].thread_id == 0);
+      CPRT_ASSERT(trc->events[0].p1 == 11);
+      CPRT_ASSERT(trc->events[0].p2 == 12);
+
+      trc_suppress_inc(trc);
+      err = trc_trace(trc, __FILE__, __LINE__, 11, 12);  TRC_ERR(err);
+      CPRT_ASSERT(trc->event_count == 1);
+      trc_suppress_dec(trc);
+
+      for (i = 1; i < 10; i++) {
+        err = trc_trace(trc, __FILE__, __LINE__, 11+i, 12+i);  TRC_ERR(err);
+        CPRT_ASSERT(trc->event_count == i + 1);
+      }
+      CPRT_ASSERT(trc->events[0].p1 == 11);
+      CPRT_ASSERT(trc->events[9].p1 == 20);
+
+      err = trc_trace(trc, __FILE__, __LINE__, 98, 99);  TRC_ERR(err);
+      CPRT_ASSERT(trc->events[0].p1 == 98);
+      CPRT_ASSERT(trc->events[0].p2 == 99);
+
+      CPRT_ENULL(out_fd = fopen("dump1.x", "w"));
+      err = trc_dump(trc, out_fd);  TRC_ERR(err);
+      fclose(out_fd);
+
+      err = trc_delete(trc);  TRC_ERR(err);
+      printf("OK\n");
       break;
+    }
 
     case 2:
     {
-      FILE *perr_fp;
-      fprintf(stderr, "CPRT_PERRNO\n");
-      perr_fp = fopen("file_not_exist", "r");
-      if (perr_fp == NULL) {
-        CPRT_PERRNO("errno should be 'file not found':");
-      } else {
-        CPRT_ABORT("Internal test failure: 'file_not_exist' appears to exist");
+      trc_t *trc;  int i;
+      FILE *out_fd;
+
+      TRC_ERR(trc_create(&trc, 10, 0));
+      /* The following values must match the corresponding env vars in tst.sh. */
+      CPRT_ASSERT(trc->num_entries == 11);
+      CPRT_ASSERT(trc->create_flags == 0x0f);
+
+      TRC_ERR(trc_trace(trc, __FILE__, __LINE__, 11, 12));
+      CPRT_ASSERT(trc->event_count == 1);
+      CPRT_ASSERT(trc->events[0].timestamp.tv_sec != 0);
+      CPRT_ASSERT(trc->events[0].thread_id != 0);
+      CPRT_ASSERT(trc->events[0].p1 == 11);
+      CPRT_ASSERT(trc->events[0].p2 == 12);
+
+      trc_suppress_inc(trc);
+      TRC_ERR(trc_trace(trc, __FILE__, __LINE__, 11, 12));
+      CPRT_ASSERT(trc->event_count == 1);
+      trc_suppress_dec(trc);
+
+      for (i = 1; i < 11; i++) {
+        TRC_ERR(trc_trace(trc, __FILE__, __LINE__, 11+i, 12+i));
+        CPRT_ASSERT(trc->event_count == i + 1);
       }
+      CPRT_ASSERT(trc->events[0].p1 == 11);
+      CPRT_ASSERT(trc->events[10].p1 == 21);
+
+      TRC_ERR(trc_trace(trc, __FILE__, __LINE__, 98, 99));
+      CPRT_ASSERT(trc->events[0].p1 == 98);
+      CPRT_ASSERT(trc->events[0].p2 == 99);
+
+      CPRT_ENULL(out_fd = fopen("dump2.x", "w"));
+      TRC_ERR(trc_dump(trc, out_fd));
+      fclose(out_fd);
+
+      TRC_ERR(trc_delete(trc));
+      printf("OK\n");
       break;
     }
 
