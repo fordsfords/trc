@@ -78,7 +78,7 @@ int trc_delete(trc_t *trc)
   free(trc);
 
   return TRC_OK;
-}  /* trc_create */
+}  /* trc_delete */
 
 
 int trc_trace(trc_t *trc, char *file_name, uint64_t file_line, uint64_t p1, uint64_t p2)
